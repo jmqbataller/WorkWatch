@@ -98,7 +98,6 @@
     .proof-head{display:flex;justify-content:space-between;gap:14px;padding:8px 9px;border-bottom:1px solid #d9dde4;background:#fafbfc}.proof-count{font-size:7px;font-weight:900;letter-spacing:.12em;color:#667085}.proof-head h3{font-size:11px;margin:2px 0}.proof-head p{margin:2px 0 0;color:#667085;font-size:8px}.proof-time{text-align:right;white-space:nowrap}.proof-time span,.proof-time small{display:block;color:#667085;font-size:8px}.proof-time strong{display:block;font-size:9px;margin:1px 0}
     .proof-grid-print{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:8px}
     .proof-card-print{margin:0;border:1px solid #d9dde4;background:#fff;min-width:0}.proof-card-print figcaption{display:flex;justify-content:space-between;gap:6px;padding:5px 6px;background:#f8fafc;border-bottom:1px solid #e4e7ec;font-size:7.5px}.proof-card-print figcaption span{color:#667085}.proof-image-print{height:48mm;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f7f8fa}.proof-image-print img{display:block;width:100%;height:100%;object-fit:contain}.proof-empty-print{padding:12px;color:#98a2b3;text-align:center;font-size:8px}
-    .note{margin-top:13px;padding:8px 9px;border:1px solid #d9dde4;background:#fafbfc;color:#475467;font-size:8px}.note strong{color:#101828}
     .footer{margin-top:12px;border-top:1px solid #e4e7ec;padding-top:6px;color:#98a2b3;font-size:7.5px;text-align:center;letter-spacing:.02em}
     @media(max-width:850px){.sheet{width:100%;margin:0;padding:18px}.proof-grid-print{grid-template-columns:1fr}.proof-image-print{height:220px}.record-info{grid-template-columns:1fr}.record-info>div+div{border-left:0;border-top:1px solid #d9dde4}.summary{grid-template-columns:1fr 1fr}}
     @media print{body{background:#fff}.toolbar{display:none}.sheet{width:auto;min-height:auto;margin:0;padding:0;box-shadow:none}.proof-block{break-inside:avoid;page-break-inside:avoid}}
@@ -133,7 +132,6 @@
     <div class="section-title">Work Proof</div>
     ${proofBlocks}
 
-    <div class="note"><strong>Time Record Note:</strong> This VA record contains task-based time captured in WorkWatch. Idle gaps between tasks are excluded. Before and After screenshots are required for completed tasks; During screenshots are optional work-in-progress evidence.</div>
     <footer class="footer">Generated through WorkWatch • Developed by John Mark</footer>
   </main>
 </body>
