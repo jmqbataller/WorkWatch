@@ -1,0 +1,6 @@
+window.WORKWATCH_CONFIG = {
+  SUPABASE_URL: '',
+  SUPABASE_PUBLISHABLE_KEY: '',
+  DEMO_MODE: true,
+  APP_NAME: 'WorkWatch'
+};
