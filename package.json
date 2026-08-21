@@ -1,0 +1,10 @@
+{
+  "name": "workwatch",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Realtime workforce time tracking with screenshot evidence for employers and virtual assistants.",
+  "scripts": {
+    "dev": "vercel dev",
+    "check": "node --check app.js && node --check api/config.js"
+  }
+}
