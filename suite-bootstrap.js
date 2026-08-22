@@ -1,9 +1,19 @@
 (() => {
   const params = new URLSearchParams(location.search);
   const shareToken = params.get('share');
+
   if (shareToken) {
     const currentAuthView = authView;
     renderShell = function () { return currentAuthView(); };
+  } else {
+    const suiteLoadWorkspace = loadWorkspace;
+    loadWorkspace = async function () {
+      const result = await suiteLoadWorkspace();
+      if (state.profile?.role === 'system_admin' && window.WorkWatchSuite?.loaded && state.view === 'dashboard') {
+        renderShell();
+      }
+      return result;
+    };
   }
 
   let attempts = 0;
