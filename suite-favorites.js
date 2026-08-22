@@ -27,7 +27,32 @@
       cell.insertBefore(document.createTextNode(' '), button);
     });
   }
-  const observer = new MutationObserver(enhanceTemplates);
+
+  function replaceVaNameLabel(root = document) {
+    root.querySelectorAll('.suite-share-summary span, .record-info .label').forEach(label => {
+      if (label.textContent.trim().toLowerCase() === 'va name') label.textContent = 'Full Name';
+    });
+  }
+
+  const nativeOpen = window.open.bind(window);
+  window.open = function (...args) {
+    const child = nativeOpen(...args);
+    if (child?.document?.write) {
+      const nativeWrite = child.document.write.bind(child.document);
+      child.document.write = (...parts) => nativeWrite(...parts.map(part =>
+        typeof part === 'string' ? part.replace(/>VA Name</g, '>Full Name<') : part
+      ));
+    }
+    return child;
+  };
+
+  const observer = new MutationObserver(() => {
+    enhanceTemplates();
+    replaceVaNameLabel();
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  queueMicrotask(enhanceTemplates);
+  queueMicrotask(() => {
+    enhanceTemplates();
+    replaceVaNameLabel();
+  });
 })();
