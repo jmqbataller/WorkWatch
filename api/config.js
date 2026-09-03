@@ -6,6 +6,6 @@ export default function handler(req, res) {
     supabaseUrl: url,
     supabasePublishableKey: key,
     configured: Boolean(url && key),
-    appName: 'WorkWatch'
+    appName: 'JM WorkLog'
   });
 }
