@@ -1,0 +1,161 @@
+.weekly-controls {
+  margin-bottom: 16px;
+}
+
+.weekly-control-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.weekly-week-field {
+  width: min(280px, 100%);
+}
+
+.weekly-nav-actions,
+.weekly-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.weekly-options {
+  border-top: 1px solid var(--line, #e4e7ec);
+  margin-top: 16px;
+  padding-top: 14px;
+  gap: 18px;
+  color: var(--muted, #667085);
+  font-size: 13px;
+}
+
+.weekly-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.weekly-period {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+  color: var(--muted, #667085);
+  font-size: 13px;
+}
+
+.weekly-period strong {
+  color: var(--text, #101828);
+  font-size: 14px;
+}
+
+.weekly-overview,
+.weekly-task-panel,
+.weekly-empty {
+  margin-top: 16px;
+}
+
+.weekly-day-bars {
+  display: grid;
+  gap: 12px;
+}
+
+.weekly-day-row {
+  display: grid;
+  grid-template-columns: 34px minmax(80px, 1fr) 76px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.weekly-day-row > div {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef2f6;
+}
+
+.weekly-day-row i {
+  display: block;
+  min-width: 2px;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+}
+
+.weekly-day-row strong {
+  text-align: right;
+  font-size: 11px;
+}
+
+.weekly-distribution {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.weekly-distribution h3 {
+  margin: 0 0 9px;
+  font-size: 12px;
+}
+
+.weekly-ranking {
+  display: grid;
+  gap: 8px;
+}
+
+.weekly-ranking > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line, #e4e7ec);
+  font-size: 12px;
+}
+
+.weekly-ranking > div:last-child {
+  border-bottom: 0;
+}
+
+.weekly-ranking span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekly-ranking strong {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.weekly-muted {
+  color: var(--muted, #667085);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .weekly-control-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .weekly-week-field {
+    width: 100%;
+  }
+
+  .weekly-nav-actions .btn {
+    flex: 1 1 120px;
+  }
+
+  .weekly-distribution {
+    grid-template-columns: 1fr;
+  }
+
+  .weekly-period {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
