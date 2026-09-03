@@ -27,8 +27,8 @@
     const period = `${fmtDate(rows[0].started_at)} – ${fmtDate(rows[rows.length - 1].started_at)}`;
     const generated = new Date();
     const reportDate = generated.toISOString().slice(0, 10);
-    const reportId = `WW-${reportDate.replace(/-/g, '')}-${String(rows.length).padStart(3, '0')}`;
-    const vaName = preparedFor || state.profile?.full_name || 'Virtual Assistant';
+    const reportId = `JM-${reportDate.replace(/-/g, '')}-${String(rows.length).padStart(3, '0')}`;
+    const personName = preparedFor || state.profile?.full_name || 'User';
 
     const timeRows = rows.map((entry, index) => `
       <tr>
@@ -64,7 +64,7 @@
 
     const win = open('', '_blank');
     if (!win) {
-      toast('Allow pop-ups to open the printable VA time record.', 'error');
+      toast('Allow pop-ups to open the printable work record.', 'error');
       return;
     }
 
@@ -73,7 +73,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>WorkWatch_VA_Time_Record_${reportDate}</title>
+  <title>JM_WorkLog_Work_Record_${reportDate}</title>
   <style>
     *{box-sizing:border-box}
     body{margin:0;background:#edf1f5;color:#101828;font-family:Arial,Helvetica,sans-serif;font-size:10px;line-height:1.45}
@@ -107,12 +107,12 @@
   <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>
   <main class="sheet">
     <header class="header">
-      <div class="brand">WORKWATCH</div>
+      <div class="brand">JM WORKLOG</div>
       <div class="meta"><strong>${esc(reportId)}</strong>Generated ${generated.toLocaleString()}</div>
     </header>
 
     <section class="record-info">
-      <div><span class="label">VA Name</span><span class="value">${esc(vaName)}</span></div>
+      <div><span class="label">Name</span><span class="value">${esc(personName)}</span></div>
       <div><span class="label">Record Period</span><span class="value">${esc(period)}</span></div>
     </section>
 
@@ -132,7 +132,7 @@
     <div class="section-title">Work Proof</div>
     ${proofBlocks}
 
-    <footer class="footer">Generated through WorkWatch • Developed by John Mark</footer>
+    <footer class="footer">Generated through JM WorkLog • Developed by John Mark</footer>
   </main>
 </body>
 </html>`);

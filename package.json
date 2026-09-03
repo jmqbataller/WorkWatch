@@ -1,10 +1,10 @@
 {
-  "name": "workwatch",
+  "name": "jm-worklog",
   "version": "1.0.0",
   "private": true,
-  "description": "Realtime workforce time tracking with screenshot evidence for employers and virtual assistants.",
+  "description": "Personal task, time, and work-evidence tracking with client-ready reports.",
   "scripts": {
     "dev": "vercel dev",
-    "check": "node --check app.js && node --check api/config.js"
+    "check": "node --check app.js && node --check api/config.js && node --check jm-worklog-brand.js"
   }
 }
