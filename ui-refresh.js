@@ -6,7 +6,12 @@
 
   function closeMobileNav() {
     document.body.classList.remove('nav-open');
-    document.querySelector('.mobile-nav')?.setAttribute('aria-expanded', 'false');
+    const button = document.querySelector('.mobile-nav');
+    if (button) {
+      button.setAttribute('aria-expanded', 'false');
+      button.setAttribute('aria-label', 'Open navigation');
+      button.innerHTML = icons.menu;
+    }
   }
 
   function addMobileNavigation() {
