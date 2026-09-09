@@ -62,7 +62,15 @@
     patchElementAttributes(root);
 
     document.querySelectorAll('.wordmark-mark').forEach(mark => {
-      if (mark.textContent !== 'JM') mark.textContent = 'JM';
+      if (!mark.querySelector('img')) {
+        mark.textContent = '';
+        const logo = document.createElement('img');
+        logo.src = './assets/logo-mark.svg';
+        logo.alt = '';
+        logo.width = 36;
+        logo.height = 36;
+        mark.appendChild(logo);
+      }
     });
   }
 
@@ -103,7 +111,7 @@
       });
     }
     document.querySelectorAll('.wordmark-mark').forEach(mark => {
-      if (mark.textContent !== 'JM') mark.textContent = 'JM';
+      if (!mark.querySelector('img')) patchBrand(mark);
     });
   });
 
@@ -111,6 +119,6 @@
   queueMicrotask(() => patchBrand(document.body));
 
   const style = document.createElement('style');
-  style.textContent = '.wordmark-mark{font-size:10px;letter-spacing:-.02em}';
+  style.textContent = '.wordmark-mark img{display:block;width:100%;height:100%}';
   document.head.appendChild(style);
 })();
