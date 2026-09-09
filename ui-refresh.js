@@ -96,7 +96,7 @@
     subtree: true
   });
   window.addEventListener('resize', () => {
-    if (window.innerWidth > 760) closeMobileNav();
+    if (window.innerWidth > 1100) closeMobileNav();
   });
   window.addEventListener('keydown', event => {
     if (event.key === 'Escape') closeMobileNav();

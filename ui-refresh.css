@@ -356,14 +356,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .mobile-nav svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .mobile-overlay { display: none; }
 
+/* Split-screen / compact desktop: prioritize the work area and move navigation off-canvas. */
 @media (max-width: 1100px) {
-  .sidebar { width: 232px; }
-  .app-shell { grid-template-columns: 232px minmax(0, 1fr); }
-  .auth-shell { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 760px) {
   body.nav-open { overflow: hidden; }
+  .app-shell { display: block; }
+  .main { display: block; width: 100%; min-width: 0; }
   .sidebar {
     display: flex;
     width: min(286px, 86vw);
@@ -383,9 +380,22 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   }
   body.nav-open .mobile-overlay { display: block; }
   .mobile-nav { display: grid; }
-  .topbar { height: 66px; padding: 0 16px; justify-content: flex-start; }
+  .auth-shell { grid-template-columns: 1fr; }
+  .topbar { padding: 0 24px; justify-content: flex-start; }
   .topbar > div:first-of-type { min-width: 0; flex: 1; }
   .top-actions { margin-left: auto; }
+  .page { max-width: none; padding: 26px 24px 56px; }
+  .split, .ww-work-grid { grid-template-columns: minmax(0, 1fr); }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .suite-filter-grid, .pro-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .suite-report-filters, .pro-report-filter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel, .panel-body, .form-grid, .field, .input, .select, .textarea { min-width: 0; }
+  .input, .select, .textarea { max-width: 100%; }
+  .table-wrap { max-width: 100%; }
+}
+
+@media (max-width: 760px) {
+  .topbar { height: 66px; padding: 0 16px; justify-content: flex-start; }
   .top-date { display: none; }
   .page { padding: 22px 16px 48px; }
   .pagehead { align-items: flex-start; }
