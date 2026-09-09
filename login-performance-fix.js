@@ -68,18 +68,30 @@
     return workspaceLoad;
   };
 
-  // Give immediate feedback while authentication completes. If auth fails,
-  // the original handler shows the error and this restores the button.
+  // Give immediate feedback while authentication and first workspace hydration
+  // complete. The auth callback may request the same load; singleflight above
+  // makes both callers share one promise instead of duplicating the work.
   handleAuth = async function(event) {
     const form = event?.currentTarget || event?.target;
     const button = form?.querySelector?.('button[type="submit"], button.btn-primary');
     const originalText = button?.textContent || 'Sign in';
+    const signingIn = state.authMode === 'signin';
+
     if (button) {
       button.disabled = true;
-      button.textContent = state.authMode === 'signin' ? 'Signing in…' : 'Creating account…';
+      button.textContent = signingIn ? 'Signing in…' : 'Creating account…';
     }
+
     try {
-      return await originalHandleAuth(event);
+      await originalHandleAuth(event);
+
+      if (signingIn) {
+        const { data } = await sb.auth.getSession();
+        if (data?.session?.user) {
+          if (button && document.body.contains(button)) button.textContent = 'Loading workspace…';
+          await loadWorkspace();
+        }
+      }
     } finally {
       if (button && document.body.contains(button)) {
         button.disabled = false;
