@@ -5,7 +5,7 @@
   const currentPersonalEntry = () => (state.entries || []).find(entry =>
     entry.employee_id === state.profile?.id && entry.status === 'active'
   );
-  const recoveredEntryIds = new Set();
+  const recoveredEvidence = new Map();
 
   const breakMs = entry => Math.max(0, Number(entry?.break_seconds || 0)) * 1000;
   const recordedMs = entry => {
@@ -34,8 +34,9 @@
     return !existing;
   }
 
-  async function recoverStoredDuringEvidence(entry) {
-    if (!entry?.id || recoveredEntryIds.has(entry.id) || entry.employee_id !== state.profile?.id) return;
+  async function recoverStoredDuringEvidence(entry, { force = false } = {}) {
+    if (!entry?.id || entry.employee_id !== state.profile?.id) return [];
+    if (!force && recoveredEvidence.has(entry.id)) return recoveredEvidence.get(entry.id);
 
     const folder = `${state.profile.id}/${entry.id}`;
     const storedFiles = [];
@@ -47,73 +48,96 @@
       });
       if (error) {
         console.warn('Could not scan stored During evidence:', error.message);
-        return;
+        return recoveredEvidence.get(entry.id) || [];
       }
       storedFiles.push(...(data || []));
       if ((data || []).length < 100) break;
     }
 
     const duringFiles = storedFiles.filter(file => /^during(?:-|\.)/i.test(file.name || ''));
-    if (duringFiles.length) {
-      const rows = duringFiles.map(file => {
+    const rows = duringFiles.map(file => {
         const path = `${folder}/${file.name}`;
         const capturedAt = path === entry.during_path && entry.during_at
           ? entry.during_at
           : file.created_at || file.updated_at || entry.during_at || entry.started_at || new Date().toISOString();
         return {
-          id: crypto.randomUUID(),
           work_entry_id: entry.id,
           user_id: state.profile.id,
           path,
-          captured_at: capturedAt,
-          created_at: capturedAt,
-          caption: ''
+          captured_at: capturedAt
         };
       });
+    if (rows.length) {
       const { error } = await sb.from('work_entry_during_evidence').upsert(rows, {
         onConflict: 'work_entry_id,path',
         ignoreDuplicates: true
       });
       if (error) {
         console.warn('Could not recover stored During evidence:', error.message);
-        return;
       }
     }
 
-    recoveredEntryIds.add(entry.id);
+    const recovered = rows.map(row => ({
+      ...row,
+      id: `stored-${row.path}`,
+      created_at: row.captured_at
+    }));
+    recoveredEvidence.set(entry.id, recovered);
+    return recovered;
   }
 
-  async function saveDuringEvidence(file, entry, stage, capturedAt = new Date().toISOString()) {
-    if (!file || !entry?.id) throw new Error('Choose a During screenshot first.');
+  async function saveDuringEvidenceBatch(files, entry, options = {}) {
+    const selected = Array.from(files || []).filter(Boolean);
+    if (!selected.length || !entry?.id) throw new Error('Choose one or more During screenshots first.');
 
     await recoverStoredDuringEvidence(entry);
 
-    const path = await uploadEvidence(file, entry.id, stage);
-    const record = {
-      id: crypto.randomUUID(),
-      work_entry_id: entry.id,
-      user_id: state.profile.id,
-      path,
-      captured_at: capturedAt,
-      created_at: capturedAt,
-      caption: ''
-    };
-    const { error } = await sb.from('work_entry_during_evidence').insert(record);
+    const records = [];
+    for (let index = 0; index < selected.length; index += 1) {
+      const file = selected[index];
+      const capturedAt = typeof options.capturedAt === 'function'
+        ? options.capturedAt(file, index)
+        : options.capturedAt || new Date().toISOString();
+      const stage = typeof options.stage === 'function'
+        ? options.stage(file, index)
+        : options.stage || `during-${Date.now()}-${index}-${crypto.randomUUID().slice(0, 8)}`;
+      const path = await uploadEvidence(file, entry.id, stage);
+      records.push({
+        id: crypto.randomUUID(),
+        work_entry_id: entry.id,
+        user_id: state.profile.id,
+        path,
+        captured_at: capturedAt,
+        created_at: capturedAt,
+        caption: ''
+      });
+      options.onProgress?.(records.length, selected.length);
+    }
+
+    const { data, error } = await sb.from('work_entry_during_evidence')
+      .insert(records)
+      .select('id,work_entry_id,path,captured_at,created_at');
     if (error) throw error;
+    if ((data || []).length !== records.length) {
+      throw new Error(`Only ${(data || []).length} of ${records.length} During evidence records were confirmed. Please try again.`);
+    }
 
-    // Keep the latest During proof on the parent record for the older dashboard
-    // fields, even when the evidence-list refresh is delayed.
-    const { error: compatibilityError } = await sb.from('work_entries')
-      .update({ during_path: path, during_at: capturedAt })
-      .eq('id', entry.id)
-      .eq('employee_id', state.profile.id);
-    if (compatibilityError) console.warn('Could not update latest During evidence:', compatibilityError.message);
+    recoveredEvidence.delete(entry.id);
+    return Promise.all(data.map(async record => ({ ...record, url: await signed(record.path) })));
+  }
 
-    return { ...record, url: await signed(path) };
+  async function saveDuringEvidence(file, entry, stage, capturedAt = new Date().toISOString()) {
+    const records = await saveDuringEvidenceBatch([file], entry, { stage, capturedAt });
+    return records[0];
   }
 
   async function refreshDuringEvidence(records) {
     const savedRecords = (Array.isArray(records) ? records : [records]).filter(Boolean);
+    const affectedIds = [...new Set(savedRecords.map(record => record.work_entry_id).filter(Boolean))];
+    const preservedRecords = affectedIds.flatMap(entryId => {
+      const entry = (state.entries || []).find(item => item.id === entryId);
+      return Array.isArray(entry?.during_evidence) ? entry.during_evidence : [];
+    });
     let refreshError = null;
     try {
       await loadWorkspace();
@@ -122,11 +146,21 @@
       console.warn('Could not refresh workspace after saving During evidence:', error?.message || error);
     }
 
-    const changed = savedRecords.reduce(
+    const mergedRecords = [...preservedRecords, ...savedRecords];
+    const changed = mergedRecords.reduce(
       (didChange, record) => reconcileDuringEvidence(record) || didChange,
       false
     );
     if ((changed || refreshError) && state.profile) renderShell();
+
+    const latest = [...savedRecords].sort((a, b) => new Date(a.captured_at || 0) - new Date(b.captured_at || 0)).at(-1);
+    if (latest) {
+      const { error: compatibilityError } = await sb.from('work_entries')
+        .update({ during_path: latest.path, during_at: latest.captured_at })
+        .eq('id', latest.work_entry_id)
+        .eq('employee_id', state.profile.id);
+      if (compatibilityError) console.warn('Could not update latest During evidence:', compatibilityError.message);
+    }
     return savedRecords;
   }
 
@@ -145,22 +179,15 @@
       button.textContent = `Uploading 0/${files.length}…`;
     }
 
-    const savedRecords = [];
-    const failures = [];
-    for (let index = 0; index < files.length; index += 1) {
-      const file = files[index];
-      try {
-        const stage = `during-paste-${Date.now()}-${index}-${crypto.randomUUID().slice(0, 8)}`;
-        savedRecords.push(await saveDuringEvidence(file, current, stage));
-        if (button && document.body.contains(button)) button.textContent = `Uploading ${savedRecords.length}/${files.length}…`;
-      } catch (error) {
-        failures.push(`${file.name}: ${error.message || 'upload failed'}`);
+    const savedRecords = await saveDuringEvidenceBatch(files, current, {
+      stage: (_file, index) => `during-paste-${Date.now()}-${index}-${crypto.randomUUID().slice(0, 8)}`,
+      onProgress: saved => {
+        if (button && document.body.contains(button)) button.textContent = `Uploading ${saved}/${files.length}…`;
       }
-    }
+    });
 
-    if (savedRecords.length) await refreshDuringEvidence(savedRecords);
-    if (savedRecords.length) toast(`${savedRecords.length} During evidence${savedRecords.length === 1 ? '' : 's'} added.`);
-    if (failures.length) toast(`${failures.length} pasted screenshot${failures.length === 1 ? '' : 's'} could not be saved.`, 'error');
+    await refreshDuringEvidence(savedRecords);
+    toast(`${savedRecords.length} During evidence${savedRecords.length === 1 ? '' : 's'} added.`);
   }
 
   function queuePastedFiles(files) {
@@ -194,6 +221,7 @@
 
   window.WorkWatchDuringEvidence = {
     save: saveDuringEvidence,
+    saveBatch: saveDuringEvidenceBatch,
     refresh: refreshDuringEvidence,
     reconcile: reconcileDuringEvidence,
     queuePastedFiles
@@ -206,9 +234,14 @@
     const ids = hydrated.map(entry => entry.id).filter(Boolean);
     if (!ids.length) return hydrated;
 
-    await Promise.all(hydrated
+    const recovered = await Promise.all(hydrated
       .filter(entry => entry.employee_id === state.profile?.id && (entry.status === 'active' || entry.status === 'paused'))
       .map(recoverStoredDuringEvidence));
+    const recoveredByEntry = new Map();
+    recovered.flat().forEach(record => {
+      if (!recoveredByEntry.has(record.work_entry_id)) recoveredByEntry.set(record.work_entry_id, []);
+      recoveredByEntry.get(record.work_entry_id).push(record);
+    });
 
     const { data, error } = await sb
       .from('work_entry_during_evidence')
@@ -228,7 +261,9 @@
     }
 
     return Promise.all(hydrated.map(async entry => {
-      const rows = grouped.get(entry.id) || [];
+      const rowsByPath = new Map((recoveredByEntry.get(entry.id) || []).map(row => [row.path, row]));
+      for (const row of grouped.get(entry.id) || []) rowsByPath.set(row.path, row);
+      const rows = [...rowsByPath.values()];
       const evidence = await Promise.all(rows.map(async row => ({
         ...row,
         url: await signed(row.path)
@@ -337,25 +372,18 @@
       button.textContent = `Uploading 0/${files.length}…`;
     }
 
-    let saved = 0;
-    const savedRecords = [];
-    const failures = [];
     try {
-      for (let index = 0; index < files.length; index += 1) {
-        const file = files[index];
-        try {
-          const stage = `during-${Date.now()}-${index}-${crypto.randomUUID().slice(0, 8)}`;
-          savedRecords.push(await saveDuringEvidence(file, current, stage));
-          saved += 1;
+      const savedRecords = await saveDuringEvidenceBatch(files, current, {
+        stage: (_file, index) => `during-${Date.now()}-${index}-${crypto.randomUUID().slice(0, 8)}`,
+        onProgress: saved => {
           if (button) button.textContent = `Uploading ${saved}/${files.length}…`;
-        } catch (error) {
-          failures.push(`${file.name}: ${error.message || 'upload failed'}`);
         }
-      }
-
-      if (savedRecords.length) await refreshDuringEvidence(savedRecords);
-      if (saved) toast(`${saved} During evidence${saved === 1 ? '' : 's'} added.`);
-      if (failures.length) toast(`${failures.length} file${failures.length === 1 ? '' : 's'} could not be saved.`, 'error');
+      });
+      await refreshDuringEvidence(savedRecords);
+      if (input) input.value = '';
+      toast(`${savedRecords.length} During evidence${savedRecords.length === 1 ? '' : 's'} added.`);
+    } catch (error) {
+      toast(error.message || 'Could not save all During evidence.', 'error');
     } finally {
       delete form.dataset.evidenceUploading;
       if (button && document.body.contains(button)) {

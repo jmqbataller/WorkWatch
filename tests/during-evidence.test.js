@@ -9,14 +9,22 @@ const proEvidence = fs.readFileSync(path.join(root, 'pro-evidence.js'), 'utf8');
 const productivityUx = fs.readFileSync(path.join(root, 'productivity-ux.js'), 'utf8');
 
 test('During evidence is persisted and mirrored to the active work entry', () => {
-  assert.match(multiDuring, /work_entry_during_evidence['"]\)\.insert\(record\)/);
-  assert.match(multiDuring, /update\(\{ during_path: path, during_at: capturedAt \}\)/);
+  assert.match(multiDuring, /work_entry_during_evidence['"]\)[\s\S]*?\.insert\(records\)[\s\S]*?\.select\(/);
+  assert.match(multiDuring, /update\(\{ during_path: latest\.path, during_at: latest\.captured_at \}\)/);
   assert.match(multiDuring, /eq\('employee_id', state\.profile\.id\)/);
+});
+
+test('multiple selected or pasted files use one verified database batch', () => {
+  assert.match(multiDuring, /async function saveDuringEvidenceBatch\(files, entry, options = \{\}\)/);
+  assert.match(multiDuring, /\(data \|\| \[\]\)\.length !== records\.length/);
+  assert.match(multiDuring, /saveBatch: saveDuringEvidenceBatch/);
+  assert.doesNotMatch(multiDuring, /savedRecords\.push\(await saveDuringEvidence\(file, current/);
 });
 
 test('saved evidence is reconciled into UI state after the workspace refresh', () => {
   assert.match(multiDuring, /function reconcileDuringEvidence\(record\)/);
   assert.match(multiDuring, /reconcileDuringEvidence\(record\) \|\| didChange/);
+  assert.match(multiDuring, /\.\.\.preservedRecords, \.\.\.savedRecords/);
   assert.match(multiDuring, /renderShell\(\)/);
 });
 
@@ -41,9 +49,10 @@ test('repeated page-level pastes route to the active During evidence input', () 
 });
 
 test('legacy and previously uploaded During files are recovered before the latest path changes', () => {
-  assert.match(multiDuring, /async function recoverStoredDuringEvidence\(entry\)/);
+  assert.match(multiDuring, /async function recoverStoredDuringEvidence\(entry, \{ force = false \} = \{\}\)/);
   assert.match(multiDuring, /storage\.from\('evidence'\)\.list\(folder/);
   assert.match(multiDuring, /\^during\(\?:-\|\\\.\)/);
   assert.match(multiDuring, /onConflict: 'work_entry_id,path'/);
   assert.ok(multiDuring.indexOf('await recoverStoredDuringEvidence(entry)') < multiDuring.indexOf('const path = await uploadEvidence(file, entry.id, stage)'));
+  assert.match(multiDuring, /recoveredByEntry/);
 });
