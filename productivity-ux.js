@@ -213,19 +213,22 @@
     } catch { return false; }
   }
 
-  function autoSubmitPastedDuring(input) {
+  function autoUploadPastedDuring(input, files) {
     if (input?.id !== 'duringFile' || input.disabled) return false;
-    const form = input.closest('#personalDuringForm');
-    const button = form?.querySelector('button[type="submit"]');
-    if (!form || !button || button.disabled || form.dataset.evidenceUploading === '1' || form.dataset.autoEvidenceQueued === '1') return false;
+    return window.WorkWatchDuringEvidence?.queuePastedFiles?.(files) === true;
+  }
 
-    form.dataset.autoEvidenceQueued = '1';
-    requestAnimationFrame(() => {
-      delete form.dataset.autoEvidenceQueued;
-      if (!form.isConnected || !input.files?.length || button.disabled || form.dataset.evidenceUploading === '1') return;
-      form.requestSubmit(button);
-    });
-    return true;
+  function handleGlobalDuringPaste(event) {
+    if (event.defaultPrevented || document.querySelector('.pro-editor-backdrop')) return;
+    if (event.target?.closest?.('input, textarea, [contenteditable="true"]')) return;
+    const input = document.querySelector('#personalDuringForm #duringFile:not(:disabled)');
+    const files = filesFromClipboard(event);
+    if (!input || !files.length) return;
+    event.preventDefault();
+    if (assignFiles(input, files)) {
+      const automatic = autoUploadPastedDuring(input, files);
+      toast(`${files.length} screenshot${files.length === 1 ? '' : 's'} pasted${automatic ? '. Uploading automatically…' : '.'}`);
+    }
   }
 
   function clearPreviewUrls(box) {
@@ -274,7 +277,7 @@
       if (!files.length) return;
       event.preventDefault();
       if (assignFiles(input, files)) {
-        const automatic = autoSubmitPastedDuring(input);
+        const automatic = autoUploadPastedDuring(input, files);
         toast(`${files.length} screenshot${files.length === 1 ? '' : 's'} pasted${automatic ? '. Uploading automatically…' : '.'}`);
       }
     });
@@ -397,6 +400,7 @@
   if (localStorage.getItem(COMPACT_KEY) === '1') document.body.classList.add('compact-ui');
   window.addEventListener('online', updateConnectionStatus);
   window.addEventListener('offline', updateConnectionStatus);
+  document.addEventListener('paste', handleGlobalDuringPaste);
   window.addEventListener('beforeunload', () => document.querySelectorAll('.upload-box').forEach(clearPreviewUrls));
   new MutationObserver(schedule).observe(document.getElementById('app'), { childList: true, subtree: true });
   schedule();

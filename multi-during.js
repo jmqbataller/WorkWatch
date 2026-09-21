@@ -78,10 +78,73 @@
     return savedRecords;
   }
 
+  let automaticUploadChain = Promise.resolve();
+  let automaticPendingBatches = 0;
+
+  async function uploadAutomaticBatch(files) {
+    const current = currentPersonalEntry();
+    if (!current) throw new Error('Resume the task before adding During evidence.');
+
+    const form = document.getElementById('personalDuringForm');
+    const button = form?.querySelector('button[type="submit"]');
+    if (form) form.dataset.evidenceUploading = '1';
+    if (button) {
+      button.disabled = true;
+      button.textContent = `Uploading 0/${files.length}…`;
+    }
+
+    const savedRecords = [];
+    const failures = [];
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      try {
+        const stage = `during-paste-${Date.now()}-${index}-${crypto.randomUUID().slice(0, 8)}`;
+        savedRecords.push(await saveDuringEvidence(file, current, stage));
+        if (button && document.body.contains(button)) button.textContent = `Uploading ${savedRecords.length}/${files.length}…`;
+      } catch (error) {
+        failures.push(`${file.name}: ${error.message || 'upload failed'}`);
+      }
+    }
+
+    if (savedRecords.length) await refreshDuringEvidence(savedRecords);
+    if (savedRecords.length) toast(`${savedRecords.length} During evidence${savedRecords.length === 1 ? '' : 's'} added.`);
+    if (failures.length) toast(`${failures.length} pasted screenshot${failures.length === 1 ? '' : 's'} could not be saved.`, 'error');
+  }
+
+  function queuePastedFiles(files) {
+    const queuedFiles = Array.from(files || []).filter(file => file?.type?.startsWith('image/'));
+    if (!queuedFiles.length) return false;
+
+    automaticPendingBatches += 1;
+    const form = document.getElementById('personalDuringForm');
+    const button = form?.querySelector('button[type="submit"]');
+    if (form) form.dataset.evidenceUploading = '1';
+    if (button) {
+      button.disabled = true;
+      button.textContent = automaticPendingBatches > 1 ? `${automaticPendingBatches} paste batches queued…` : `Uploading 0/${queuedFiles.length}…`;
+    }
+
+    automaticUploadChain = automaticUploadChain
+      .then(() => uploadAutomaticBatch(queuedFiles))
+      .catch(error => toast(error.message || 'Could not add pasted evidence.', 'error'))
+      .finally(() => {
+        automaticPendingBatches = Math.max(0, automaticPendingBatches - 1);
+        const activeForm = document.getElementById('personalDuringForm');
+        const activeButton = activeForm?.querySelector('button[type="submit"]');
+        if (!automaticPendingBatches && activeForm) delete activeForm.dataset.evidenceUploading;
+        if (!automaticPendingBatches && activeButton) {
+          activeButton.disabled = false;
+          activeButton.textContent = reminderUploadLabel;
+        }
+      });
+    return true;
+  }
+
   window.WorkWatchDuringEvidence = {
     save: saveDuringEvidence,
     refresh: refreshDuringEvidence,
-    reconcile: reconcileDuringEvidence
+    reconcile: reconcileDuringEvidence,
+    queuePastedFiles
   };
 
   hydrate = async function (arr) {

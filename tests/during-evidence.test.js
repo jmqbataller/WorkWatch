@@ -26,9 +26,16 @@ test('quick capture uses the shared verified During evidence flow', () => {
   assert.match(proEvidence, /await during\.refresh\(record\)/);
 });
 
-test('pasting into During evidence automatically submits the selected screenshots', () => {
-  assert.match(productivityUx, /function autoSubmitPastedDuring\(input\)/);
-  assert.match(productivityUx, /form\.requestSubmit\(button\)/);
+test('pasted During screenshots are queued and uploaded without a button click', () => {
+  assert.match(productivityUx, /function autoUploadPastedDuring\(input, files\)/);
+  assert.match(productivityUx, /queuePastedFiles\?\.\(files\)/);
   assert.match(productivityUx, /Uploading automatically/);
-  assert.match(multiDuring, /form\.dataset\.evidenceUploading === '1'/);
+  assert.match(multiDuring, /automaticUploadChain/);
+  assert.match(multiDuring, /queuePastedFiles/);
+});
+
+test('repeated page-level pastes route to the active During evidence input', () => {
+  assert.match(productivityUx, /function handleGlobalDuringPaste\(event\)/);
+  assert.match(productivityUx, /#personalDuringForm #duringFile:not\(:disabled\)/);
+  assert.match(productivityUx, /document\.addEventListener\('paste', handleGlobalDuringPaste\)/);
 });
