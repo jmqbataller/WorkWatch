@@ -5,6 +5,7 @@
   const currentPersonalEntry = () => (state.entries || []).find(entry =>
     entry.employee_id === state.profile?.id && entry.status === 'active'
   );
+  const recoveredEntryIds = new Set();
 
   const breakMs = entry => Math.max(0, Number(entry?.break_seconds || 0)) * 1000;
   const recordedMs = entry => {
@@ -33,8 +34,59 @@
     return !existing;
   }
 
+  async function recoverStoredDuringEvidence(entry) {
+    if (!entry?.id || recoveredEntryIds.has(entry.id) || entry.employee_id !== state.profile?.id) return;
+
+    const folder = `${state.profile.id}/${entry.id}`;
+    const storedFiles = [];
+    for (let offset = 0; ; offset += 100) {
+      const { data, error } = await sb.storage.from('evidence').list(folder, {
+        limit: 100,
+        offset,
+        sortBy: { column: 'created_at', order: 'asc' }
+      });
+      if (error) {
+        console.warn('Could not scan stored During evidence:', error.message);
+        return;
+      }
+      storedFiles.push(...(data || []));
+      if ((data || []).length < 100) break;
+    }
+
+    const duringFiles = storedFiles.filter(file => /^during(?:-|\.)/i.test(file.name || ''));
+    if (duringFiles.length) {
+      const rows = duringFiles.map(file => {
+        const path = `${folder}/${file.name}`;
+        const capturedAt = path === entry.during_path && entry.during_at
+          ? entry.during_at
+          : file.created_at || file.updated_at || entry.during_at || entry.started_at || new Date().toISOString();
+        return {
+          id: crypto.randomUUID(),
+          work_entry_id: entry.id,
+          user_id: state.profile.id,
+          path,
+          captured_at: capturedAt,
+          created_at: capturedAt,
+          caption: ''
+        };
+      });
+      const { error } = await sb.from('work_entry_during_evidence').upsert(rows, {
+        onConflict: 'work_entry_id,path',
+        ignoreDuplicates: true
+      });
+      if (error) {
+        console.warn('Could not recover stored During evidence:', error.message);
+        return;
+      }
+    }
+
+    recoveredEntryIds.add(entry.id);
+  }
+
   async function saveDuringEvidence(file, entry, stage, capturedAt = new Date().toISOString()) {
     if (!file || !entry?.id) throw new Error('Choose a During screenshot first.');
+
+    await recoverStoredDuringEvidence(entry);
 
     const path = await uploadEvidence(file, entry.id, stage);
     const record = {
@@ -153,6 +205,10 @@
 
     const ids = hydrated.map(entry => entry.id).filter(Boolean);
     if (!ids.length) return hydrated;
+
+    await Promise.all(hydrated
+      .filter(entry => entry.employee_id === state.profile?.id && (entry.status === 'active' || entry.status === 'paused'))
+      .map(recoverStoredDuringEvidence));
 
     const { data, error } = await sb
       .from('work_entry_during_evidence')

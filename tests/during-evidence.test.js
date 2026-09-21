@@ -39,3 +39,11 @@ test('repeated page-level pastes route to the active During evidence input', () 
   assert.match(productivityUx, /#personalDuringForm #duringFile:not\(:disabled\)/);
   assert.match(productivityUx, /document\.addEventListener\('paste', handleGlobalDuringPaste\)/);
 });
+
+test('legacy and previously uploaded During files are recovered before the latest path changes', () => {
+  assert.match(multiDuring, /async function recoverStoredDuringEvidence\(entry\)/);
+  assert.match(multiDuring, /storage\.from\('evidence'\)\.list\(folder/);
+  assert.match(multiDuring, /\^during\(\?:-\|\\\.\)/);
+  assert.match(multiDuring, /onConflict: 'work_entry_id,path'/);
+  assert.ok(multiDuring.indexOf('await recoverStoredDuringEvidence(entry)') < multiDuring.indexOf('const path = await uploadEvidence(file, entry.id, stage)'));
+});
