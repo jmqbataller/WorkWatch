@@ -213,6 +213,21 @@
     } catch { return false; }
   }
 
+  function autoSubmitPastedDuring(input) {
+    if (input?.id !== 'duringFile' || input.disabled) return false;
+    const form = input.closest('#personalDuringForm');
+    const button = form?.querySelector('button[type="submit"]');
+    if (!form || !button || button.disabled || form.dataset.evidenceUploading === '1' || form.dataset.autoEvidenceQueued === '1') return false;
+
+    form.dataset.autoEvidenceQueued = '1';
+    requestAnimationFrame(() => {
+      delete form.dataset.autoEvidenceQueued;
+      if (!form.isConnected || !input.files?.length || button.disabled || form.dataset.evidenceUploading === '1') return;
+      form.requestSubmit(button);
+    });
+    return true;
+  }
+
   function clearPreviewUrls(box) {
     (previewUrls.get(box) || []).forEach(url => URL.revokeObjectURL(url));
     previewUrls.delete(box);
@@ -258,7 +273,10 @@
       const files = filesFromClipboard(event);
       if (!files.length) return;
       event.preventDefault();
-      if (assignFiles(input, files)) toast(`${files.length} screenshot${files.length === 1 ? '' : 's'} pasted.`);
+      if (assignFiles(input, files)) {
+        const automatic = autoSubmitPastedDuring(input);
+        toast(`${files.length} screenshot${files.length === 1 ? '' : 's'} pasted${automatic ? '. Uploading automatically…' : '.'}`);
+      }
     });
     box.addEventListener('dragover', event => event.preventDefault());
     box.addEventListener('drop', event => {

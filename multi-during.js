@@ -206,9 +206,12 @@
     const input = document.getElementById('duringFile');
     const files = Array.from(input?.files || []);
     const button = event.submitter || event.target.querySelector('button[type="submit"]');
+    const form = event.target;
 
     if (!current) return toast('Resume the task before adding During evidence.', 'error');
     if (!files.length) return toast('Choose one or more During screenshots first.', 'error');
+    if (form.dataset.evidenceUploading === '1') return;
+    form.dataset.evidenceUploading = '1';
 
     if (button) {
       button.disabled = true;
@@ -235,6 +238,7 @@
       if (saved) toast(`${saved} During evidence${saved === 1 ? '' : 's'} added.`);
       if (failures.length) toast(`${failures.length} file${failures.length === 1 ? '' : 's'} could not be saved.`, 'error');
     } finally {
+      delete form.dataset.evidenceUploading;
       if (button && document.body.contains(button)) {
         button.disabled = false;
         button.textContent = reminderUploadLabel;
