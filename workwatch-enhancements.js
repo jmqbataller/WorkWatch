@@ -276,8 +276,29 @@
     return `<figure><figcaption><strong>${esc(label)}</strong><span>${esc(time || '—')}</span></figcaption>${url ? `<div class="proof-img"><img src="${esc(url)}"></div>` : '<div class="proof-empty">No image</div>'}${caption ? `<p>${esc(caption)}</p>` : ''}</figure>`;
   }
 
-  function exportSelectedPdf(entries) {
+  async function exportSelectedPdf(entries) {
     if (!entries.length) return;
+    const w = open('', '_blank');
+    if (!w) return toast('Allow pop-ups to open the custom export.', 'error');
+    w.document.write('<!doctype html><title>Verifying evidence…</title><p style="font:14px Arial;padding:24px">Verifying all saved evidence before export…</p>');
+    const pdfButton = document.getElementById('wwExportPdf');
+    const originalLabel = pdfButton?.textContent || 'Export PDF';
+    if (pdfButton) {
+      pdfButton.disabled = true;
+      pdfButton.textContent = 'Verifying evidence…';
+    }
+    try {
+      if (window.WorkWatchDuringEvidence?.ensureComplete) {
+        await window.WorkWatchDuringEvidence.ensureComplete(entries);
+      }
+    } catch (error) {
+      w.close();
+      if (pdfButton) {
+        pdfButton.disabled = false;
+        pdfButton.textContent = originalLabel;
+      }
+      return toast(error.message || 'Could not verify all evidence before export.', 'error');
+    }
     const sorted = [...entries].sort((a,b) => new Date(a.started_at) - new Date(b.started_at));
     const total = sorted.reduce((sum,e) => sum + workMs(e), 0);
     const totalBreak = sorted.reduce((sum,e) => sum + breakMs(e), 0);
@@ -289,12 +310,15 @@
       return `<section class="proof-block"><div class="proof-head"><div><small>TASK ${String(index+1).padStart(2,'0')}</small><h2>${esc(e.title)}</h2><p>${esc([e.client_label,e.project_label].filter(Boolean).join(' · '))}</p>${checks.length ? `<div class="checklist">${checks.map(x => `<span>${x.completed ? '☑' : '☐'} ${esc(x.item_text)}</span>`).join('')}</div>` : ''}</div><div class="proof-time"><strong>${fmtDate(e.started_at)}</strong><span>${fmtTime(e.started_at)} – ${fmtTime(e.ended_at)}</span><span>${fmtDuration(workMs(e))} recorded</span></div></div><div class="proof-grid">${proofFigure('BEFORE', fmtTime(e.started_at), e.before_url)}${(e.during_evidence || []).map((d,i) => proofFigure(`DURING ${i+1}`, fmtTime(d.captured_at), d.url, d.caption || '')).join('')}${proofFigure('AFTER', fmtTime(e.ended_at), e.after_url)}</div></section>`;
     }).join('');
 
-    const w = open('', '_blank');
-    if (!w) return toast('Allow pop-ups to open the custom export.', 'error');
+    w.document.open();
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(filename)}</title><style>
       *{box-sizing:border-box}body{margin:0;background:#f5f5f5;color:#111;font-family:Arial,sans-serif;font-size:10px;line-height:1.45}@page{size:A4 portrait;margin:10mm}.toolbar{position:sticky;top:0;z-index:10;padding:10px;text-align:center;background:#111}.toolbar button{padding:9px 14px;border:0;border-radius:6px;font-weight:700}.sheet{width:210mm;min-height:297mm;margin:12px auto;background:#fff;padding:11mm 12mm}.header{display:flex;justify-content:space-between;gap:20px;padding-bottom:10px;border-bottom:2px solid #111}.brand{font-weight:900;letter-spacing:.16em}.header h1{font-size:20px;margin:4px 0}.meta{text-align:right}.summary{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #aaa;border-top:0}.summary div{padding:8px;border-right:1px solid #aaa}.summary div:last-child{border-right:0}.summary span{display:block;font-size:7px;text-transform:uppercase}.summary strong{font-size:14px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{border:1px solid #bbb;padding:6px;vertical-align:top}th{background:#f2f2f2;font-size:7px;text-transform:uppercase}.note{margin-top:3px;color:#555}.proof-block{margin-top:14px;border:1px solid #aaa;break-inside:avoid}.proof-head{display:flex;justify-content:space-between;gap:12px;padding:8px;border-bottom:1px solid #aaa;background:#fafafa}.proof-head h2{font-size:12px;margin:2px 0}.proof-head p{margin:0;color:#555}.proof-time{text-align:right}.proof-time span,.proof-time strong{display:block}.checklist{display:grid;gap:2px;margin-top:5px}.proof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:8px}.proof-grid figure{margin:0;border:1px solid #bbb}.proof-grid figcaption{display:flex;justify-content:space-between;padding:5px;background:#f7f7f7}.proof-img{height:48mm;display:flex;align-items:center;justify-content:center;overflow:hidden}.proof-img img{width:100%;height:100%;object-fit:contain}.proof-empty{height:48mm;display:flex;align-items:center;justify-content:center;color:#777}.proof-grid figure p{margin:0;padding:5px;border-top:1px solid #ddd}.footer{margin-top:18px;padding-top:8px;border-top:1px solid #aaa;color:#555;text-align:center}@media print{body{background:#fff}.toolbar{display:none}.sheet{margin:0;box-shadow:none}}
     </style></head><body><div class="toolbar"><button onclick="print()">Print / Save PDF</button></div><main class="sheet"><header class="header"><div><div class="brand">WORKWATCH</div><h1>Custom Work Record Export</h1><div>${esc(state.profile?.full_name || '')}</div></div><div class="meta"><strong>${dates.length === 1 ? esc(dates[0]) : `${esc(dates[0])} – ${esc(dates[dates.length-1])}`}</strong><div>Generated ${new Date().toLocaleString()}</div></div></header><section class="summary"><div><span>Selected tasks</span><strong>${sorted.length}</strong></div><div><span>Recorded time</span><strong>${fmtDuration(total)}</strong></div><div><span>Break excluded</span><strong>${fmtDuration(totalBreak)}</strong></div><div><span>Work days</span><strong>${dates.length}</strong></div></section><table><thead><tr><th>#</th><th>Date</th><th>Task</th><th>Client / Project</th><th>Time</th><th>Break</th><th>Recorded</th></tr></thead><tbody>${taskRows}</tbody></table>${proofs}<footer class="footer">Generated through WorkWatch • Developed by John Mark</footer></main></body></html>`);
     w.document.close();
+    if (pdfButton) {
+      pdfButton.disabled = false;
+      pdfButton.textContent = originalLabel;
+    }
   }
 
   if (!document.getElementById('wwEnhancementStyles')) {

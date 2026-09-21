@@ -86,6 +86,70 @@
     return recovered;
   }
 
+  async function ensureCompleteDuringEvidence(entries) {
+    const requested = Array.from(entries || []).filter(Boolean);
+    const owned = requested.filter(entry => entry.id && entry.employee_id === state.profile?.id);
+    if (!owned.length) return requested;
+
+    const storedGroups = await Promise.all(owned.map(entry =>
+      recoverStoredDuringEvidence(entry, { force: true })
+    ));
+    const storedByEntry = new Map();
+    storedGroups.flat().forEach(record => {
+      if (!storedByEntry.has(record.work_entry_id)) storedByEntry.set(record.work_entry_id, []);
+      storedByEntry.get(record.work_entry_id).push(record);
+    });
+
+    const { data, error } = await sb
+      .from('work_entry_during_evidence')
+      .select('id,work_entry_id,path,captured_at,created_at,caption')
+      .in('work_entry_id', owned.map(entry => entry.id))
+      .order('captured_at', { ascending: true });
+    if (error) console.warn('Could not verify During evidence rows before export:', error.message);
+
+    const databaseByEntry = new Map();
+    for (const row of data || []) {
+      if (!databaseByEntry.has(row.work_entry_id)) databaseByEntry.set(row.work_entry_id, []);
+      databaseByEntry.get(row.work_entry_id).push(row);
+    }
+
+    for (const entry of owned) {
+      const byPath = new Map();
+      for (const record of entry.during_evidence || []) if (record?.path) byPath.set(record.path, record);
+      for (const record of storedByEntry.get(entry.id) || []) byPath.set(record.path, { ...byPath.get(record.path), ...record });
+      for (const record of databaseByEntry.get(entry.id) || []) byPath.set(record.path, { ...byPath.get(record.path), ...record });
+      if (entry.during_path && !byPath.has(entry.during_path)) {
+        byPath.set(entry.during_path, {
+          id: `legacy-${entry.id}`,
+          work_entry_id: entry.id,
+          path: entry.during_path,
+          captured_at: entry.during_at,
+          created_at: entry.during_at
+        });
+      }
+
+      const evidence = await Promise.all([...byPath.values()].map(async record => ({
+        ...record,
+        url: record.url || await signed(record.path)
+      })));
+      evidence.sort((a, b) => new Date(a.captured_at || 0) - new Date(b.captured_at || 0));
+      const latest = evidence.at(-1);
+      entry.during_evidence = evidence;
+      entry.during_url = latest?.url || entry.during_url || null;
+      entry.during_path = latest?.path || entry.during_path || null;
+      entry.during_at = latest?.captured_at || entry.during_at || null;
+
+      console.info('[During evidence verification]', {
+        workEntryId: entry.id,
+        storageCount: new Set((storedByEntry.get(entry.id) || []).map(record => record.path)).size,
+        databaseCount: new Set((databaseByEntry.get(entry.id) || []).map(record => record.path)).size,
+        exportCount: evidence.length
+      });
+    }
+
+    return requested;
+  }
+
   async function saveDuringEvidenceBatch(files, entry, options = {}) {
     const selected = Array.from(files || []).filter(Boolean);
     if (!selected.length || !entry?.id) throw new Error('Choose one or more During screenshots first.');
@@ -223,6 +287,7 @@
     save: saveDuringEvidence,
     saveBatch: saveDuringEvidenceBatch,
     refresh: refreshDuringEvidence,
+    ensureComplete: ensureCompleteDuringEvidence,
     reconcile: reconcileDuringEvidence,
     queuePastedFiles
   };

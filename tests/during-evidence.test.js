@@ -7,6 +7,8 @@ const root = path.resolve(__dirname, '..');
 const multiDuring = fs.readFileSync(path.join(root, 'multi-during.js'), 'utf8');
 const proEvidence = fs.readFileSync(path.join(root, 'pro-evidence.js'), 'utf8');
 const productivityUx = fs.readFileSync(path.join(root, 'productivity-ux.js'), 'utf8');
+const customExport = fs.readFileSync(path.join(root, 'workwatch-enhancements.js'), 'utf8');
+const proReports = fs.readFileSync(path.join(root, 'pro-reports.js'), 'utf8');
 
 test('During evidence is persisted and mirrored to the active work entry', () => {
   assert.match(multiDuring, /work_entry_during_evidence['"]\)[\s\S]*?\.insert\(records\)[\s\S]*?\.select\(/);
@@ -55,4 +57,14 @@ test('legacy and previously uploaded During files are recovered before the lates
   assert.match(multiDuring, /onConflict: 'work_entry_id,path'/);
   assert.ok(multiDuring.indexOf('await recoverStoredDuringEvidence(entry)') < multiDuring.indexOf('const path = await uploadEvidence(file, entry.id, stage)'));
   assert.match(multiDuring, /recoveredByEntry/);
+});
+
+test('completed tasks are verified from Storage and database before export', () => {
+  assert.match(multiDuring, /async function ensureCompleteDuringEvidence\(entries\)/);
+  assert.match(multiDuring, /recoverStoredDuringEvidence\(entry, \{ force: true \}\)/);
+  assert.match(multiDuring, /storageCount:/);
+  assert.match(multiDuring, /databaseCount:/);
+  assert.match(multiDuring, /ensureComplete: ensureCompleteDuringEvidence/);
+  assert.match(customExport, /await window\.WorkWatchDuringEvidence\.ensureComplete\(entries\)/);
+  assert.match(proReports, /await window\.WorkWatchDuringEvidence\.ensureComplete\(entries\)/);
 });
