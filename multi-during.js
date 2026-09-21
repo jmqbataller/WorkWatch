@@ -15,6 +15,75 @@
     return Math.max(0, end - new Date(entry.started_at) - paused);
   };
 
+  function reconcileDuringEvidence(record) {
+    const entry = (state.entries || []).find(item => item.id === record?.work_entry_id);
+    if (!entry || !record?.path) return false;
+
+    const list = Array.isArray(entry.during_evidence) ? entry.during_evidence : [];
+    const existing = list.find(item => item.id === record.id || item.path === record.path);
+    if (existing) Object.assign(existing, record);
+    else list.push(record);
+    list.sort((a, b) => new Date(a.captured_at || 0) - new Date(b.captured_at || 0));
+
+    const latest = list[list.length - 1];
+    entry.during_evidence = list;
+    entry.during_url = latest?.url || entry.during_url || null;
+    entry.during_at = latest?.captured_at || entry.during_at || null;
+    entry.during_path = latest?.path || entry.during_path || null;
+    return !existing;
+  }
+
+  async function saveDuringEvidence(file, entry, stage, capturedAt = new Date().toISOString()) {
+    if (!file || !entry?.id) throw new Error('Choose a During screenshot first.');
+
+    const path = await uploadEvidence(file, entry.id, stage);
+    const record = {
+      id: crypto.randomUUID(),
+      work_entry_id: entry.id,
+      user_id: state.profile.id,
+      path,
+      captured_at: capturedAt,
+      created_at: capturedAt,
+      caption: ''
+    };
+    const { error } = await sb.from('work_entry_during_evidence').insert(record);
+    if (error) throw error;
+
+    // Keep the latest During proof on the parent record for the older dashboard
+    // fields, even when the evidence-list refresh is delayed.
+    const { error: compatibilityError } = await sb.from('work_entries')
+      .update({ during_path: path, during_at: capturedAt })
+      .eq('id', entry.id)
+      .eq('employee_id', state.profile.id);
+    if (compatibilityError) console.warn('Could not update latest During evidence:', compatibilityError.message);
+
+    return { ...record, url: await signed(path) };
+  }
+
+  async function refreshDuringEvidence(records) {
+    const savedRecords = (Array.isArray(records) ? records : [records]).filter(Boolean);
+    let refreshError = null;
+    try {
+      await loadWorkspace();
+    } catch (error) {
+      refreshError = error;
+      console.warn('Could not refresh workspace after saving During evidence:', error?.message || error);
+    }
+
+    const changed = savedRecords.reduce(
+      (didChange, record) => reconcileDuringEvidence(record) || didChange,
+      false
+    );
+    if ((changed || refreshError) && state.profile) renderShell();
+    return savedRecords;
+  }
+
+  window.WorkWatchDuringEvidence = {
+    save: saveDuringEvidence,
+    refresh: refreshDuringEvidence,
+    reconcile: reconcileDuringEvidence
+  };
+
   hydrate = async function (arr) {
     const hydrated = await baseHydrate(arr);
     if (!sb || !state.user || !hydrated.length) return hydrated;
@@ -147,21 +216,14 @@
     }
 
     let saved = 0;
+    const savedRecords = [];
     const failures = [];
     try {
       for (let index = 0; index < files.length; index += 1) {
         const file = files[index];
         try {
           const stage = `during-${Date.now()}-${index}-${crypto.randomUUID().slice(0, 8)}`;
-          const path = await uploadEvidence(file, current.id, stage);
-          const capturedAt = new Date().toISOString();
-          const { error } = await sb.from('work_entry_during_evidence').insert({
-            work_entry_id: current.id,
-            user_id: state.profile.id,
-            path,
-            captured_at: capturedAt
-          });
-          if (error) throw error;
+          savedRecords.push(await saveDuringEvidence(file, current, stage));
           saved += 1;
           if (button) button.textContent = `Uploading ${saved}/${files.length}…`;
         } catch (error) {
@@ -169,7 +231,7 @@
         }
       }
 
-      await loadWorkspace();
+      if (savedRecords.length) await refreshDuringEvidence(savedRecords);
       if (saved) toast(`${saved} During evidence${saved === 1 ? '' : 's'} added.`);
       if (failures.length) toast(`${failures.length} file${failures.length === 1 ? '' : 's'} could not be saved.`, 'error');
     } finally {
